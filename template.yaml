@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Description: SAM app that uses Comprehend API to detect sentiment in S3 Objects and stores results in another S3 bucket folder
+
+Resources:
+  SourceTextInputBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub "response-review-${AWS::StackName}-${AWS::AccountId}"
+
+  DetectSentimentInFile:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: src/comprehend.lambda_handler
+      Runtime: python3.9
+      CodeUri: .
+      Description: Uses Comprehend API to detect sentiment in S3 Objects and stores in output folder.
+      MemorySize: 128
+      Timeout: 20
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - 's3:GetObject'
+                - 's3:PutObject'
+              Resource: !Sub "arn:aws:s3:::response-review-${AWS::StackName}-${AWS::AccountId}/*"
+            - Effect: Allow
+              Action:
+                - 'comprehend:*'
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - 'cloudwatch:PutMetricData'
+              Resource: "*"
+      Events:
+        BucketEvent1:
+          Type: S3
+          Properties:
+            Bucket: !Ref SourceTextInputBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: '.txt'
+
+Outputs:
+  S3ReviewSentimentBucket:
+    Value:
+      Ref: "SourceTextInputBucket"
